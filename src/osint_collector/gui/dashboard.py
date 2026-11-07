@@ -45,7 +45,8 @@ with st.sidebar:
         "Confirmo que tengo autorización para analizar este dominio",
         value=False
     )
-    run_recon = st.button("INITIALIZE PASSIVE RECON")
+    include_external = st.checkbox("Ejecutar conectores externos (RDAP, CT, APIs y HTTP)", value=False)
+    run_recon = st.button("INITIALIZE RECON")
     st.markdown("---")
     st.markdown("### MÓDULOS")
     st.checkbox("Domain Analyzer", value=True, disabled=True)
@@ -54,8 +55,14 @@ with st.sidebar:
     st.checkbox("Relationship Graph", value=True, disabled=True)
     st.checkbox("JSON Reporting", value=True, disabled=True)
     st.checkbox("Local Hosts (solo lectura)", value=False, key="show_hosts")
+    st.checkbox("RDAP / WHOIS", value=True, disabled=True)
+    st.checkbox("Certificate Transparency", value=True, disabled=True)
+    st.checkbox("SecurityTrails", value=True, disabled=True)
+    st.checkbox("Shodan / Censys", value=True, disabled=True)
+    st.checkbox("VirusTotal", value=True, disabled=True)
+    st.checkbox("Technology Detection (HTTP)", value=True, disabled=True)
     st.checkbox("Nmap NSE (escaneo activo)", value=False, disabled=True)
-    st.caption("WHOIS, CT, Shodan/Censys y VirusTotal: pendientes de implementación.")
+    st.caption("Los conectores externos requieren internet; algunos necesitan claves API.")
 
 if run_recon:
     if not target.strip():
@@ -63,9 +70,9 @@ if run_recon:
     elif not authorized:
         st.error("Confirmá que tenés autorización para analizar el dominio.")
     else:
-        with st.spinner("Consultando DNS y construyendo evidencias..."):
+        with st.spinner("Consultando fuentes OSINT y construyendo evidencias..."):
             try:
-                st.session_state["osint_result"] = collect_domain_intelligence(target)
+                st.session_state["osint_result"] = collect_domain_intelligence(target, include_external=include_external)
             except Exception as exc:
                 st.session_state["osint_result"] = None
                 st.error("No se pudo completar el reconocimiento: %s" % exc)
@@ -140,6 +147,17 @@ else:
         st.caption("Cada evidencia conserva fuente, fecha, clasificación y confianza.")
 
     st.markdown("---")
+    if result.get("external_results"):
+        st.markdown("### [04] EXTERNAL INTELLIGENCE PROVIDERS")
+        for provider in result["external_results"]:
+            label = "%s · %s" % (provider["provider"], provider["status"].upper())
+            with st.expander(label):
+                if provider.get("message"):
+                    st.write(provider["message"])
+                st.json(provider.get("data", {}))
+                st.caption("Tipo de fuente: %s · Observado: %s" % (
+                    provider.get("source_type"), provider.get("observed_at")))
+
     with st.expander("EVIDENCE REGISTER"):
         st.json(result["evidence"])
 

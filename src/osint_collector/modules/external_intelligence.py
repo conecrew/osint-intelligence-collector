@@ -30,6 +30,34 @@ def _get(url, **kwargs):
     return requests.get(url, headers=headers, timeout=TIMEOUT, **kwargs)
 
 
+
+def query_whois(domain):
+    """Consulta WHOIS clásico si python-whois está instalado."""
+    try:
+        import whois
+    except ImportError:
+        return _result("WHOIS", "dependency_missing",
+                       message="Instalar python-whois para habilitar WHOIS clásico.")
+    try:
+        record = whois.whois(domain)
+        data = {}
+        for field in ("domain_name", "registrar", "whois_server", "creation_date",
+                      "expiration_date", "updated_date", "name_servers", "status",
+                      "emails", "org", "country"):
+            value = getattr(record, field, None)
+            if value is not None:
+                if hasattr(value, "isoformat"):
+                    value = value.isoformat()
+                elif isinstance(value, (list, tuple)):
+                    value = [item.isoformat() if hasattr(item, "isoformat") else str(item)
+                             for item in value]
+                else:
+                    value = str(value)
+                data[field] = value
+        return _result("WHOIS", "ok" if data else "no_data", data)
+    except Exception as exc:
+        return _result("WHOIS", "error", message=str(exc))
+
 def query_rdap(domain):
     """Consulta RDAP público a través del bootstrap rdap.org."""
     try:
@@ -223,6 +251,7 @@ def run_passive_connectors(domain):
     """Ejecuta cada conector de forma aislada; un proveedor no bloquea a los demás."""
     connectors = [
         query_rdap,
+        query_whois,
         query_certificate_transparency,
         query_securitytrails,
         query_shodan,

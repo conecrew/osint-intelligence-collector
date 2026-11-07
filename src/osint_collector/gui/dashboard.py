@@ -1,7 +1,25 @@
-"""Prototipo visual del dashboard OSINT (Streamlit)."""
+"""Dashboard Streamlit para reconocimiento OSINT pasivo."""
+import json
+import os
+import sys
+
+# Permite ejecutar el dashboard desde el repositorio sin instalar el paquete.
+_PROJECT_SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if _PROJECT_SRC not in sys.path:
+    sys.path.insert(0, _PROJECT_SRC)
+
 import streamlit as st
 
-st.set_page_config(page_title="OSINT Intelligence Collector", page_icon="⌁", layout="wide")
+from osint_collector.core.collection_service import collect_domain_intelligence
+from osint_collector.modules.hosts_manager import read_hosts_file
+from osint_collector.reporting.report_generator import build_json_report
+from osint_collector.visualization.graph_engine import graph_to_dot
+
+st.set_page_config(
+    page_title="OSINT Intelligence Collector",
+    page_icon="⌁",
+    layout="wide"
+)
 
 st.markdown("""
 <style>
@@ -16,43 +34,133 @@ p, label, div { font-family: 'Consolas', 'Courier New', monospace; }
 </style>
 """, unsafe_allow_html=True)
 
+if "osint_result" not in st.session_state:
+    st.session_state["osint_result"] = None
+
 with st.sidebar:
     st.markdown("## ⌁ OSINT // COLLECTOR")
-    st.caption("INTELLIGENCE WORKSPACE · DEV BUILD")
+    st.caption("INTELLIGENCE WORKSPACE · INTEGRATED BUILD")
     target = st.text_input("DOMINIO OBJETIVO", placeholder="example.org")
-    st.checkbox("Confirmo que tengo autorización", value=False, key="authorized")
-    st.divider()
+    authorized = st.checkbox(
+        "Confirmo que tengo autorización para analizar este dominio",
+        value=False
+    )
+    run_recon = st.button("INITIALIZE PASSIVE RECON")
+    st.markdown("---")
     st.markdown("### MÓDULOS")
-    for module in ["DNS Intelligence", "WHOIS / RDAP", "Certificate Intelligence",
-                   "Nmap NSE", "Shodan / Censys", "VirusTotal",
-                   "Technology Detection", "Local DNS / Hosts"]:
-        st.checkbox(module, value=False, disabled=True)
-    st.caption("Los conectores se habilitarán progresivamente.")
+    st.checkbox("Domain Analyzer", value=True, disabled=True)
+    st.checkbox("DNS Intelligence", value=True, disabled=True)
+    st.checkbox("Evidence Manager", value=True, disabled=True)
+    st.checkbox("Relationship Graph", value=True, disabled=True)
+    st.checkbox("JSON Reporting", value=True, disabled=True)
+    st.checkbox("Local Hosts (solo lectura)", value=False, key="show_hosts")
+    st.checkbox("Nmap NSE (escaneo activo)", value=False, disabled=True)
+    st.caption("WHOIS, CT, Shodan/Censys y VirusTotal: pendientes de implementación.")
+
+if run_recon:
+    if not target.strip():
+        st.error("Ingresá un dominio antes de iniciar el análisis.")
+    elif not authorized:
+        st.error("Confirmá que tenés autorización para analizar el dominio.")
+    else:
+        with st.spinner("Consultando DNS y construyendo evidencias..."):
+            try:
+                st.session_state["osint_result"] = collect_domain_intelligence(target)
+            except Exception as exc:
+                st.session_state["osint_result"] = None
+                st.error("No se pudo completar el reconocimiento: %s" % exc)
+
+result = st.session_state.get("osint_result")
 
 st.markdown("# OSINT INTELLIGENCE COLLECTOR")
-st.markdown('<p class="muted">OPEN SOURCE INTELLIGENCE · INFRASTRUCTURE MAPPER · DEVELOPMENT BUILD</p>', unsafe_allow_html=True)
-st.warning("PROYECTO EN DESARROLLO — los módulos de recopilación todavía no están conectados.")
+st.markdown(
+    '<p class="muted">OPEN SOURCE INTELLIGENCE · INFRASTRUCTURE MAPPER · INTEGRATED BUILD</p>',
+    unsafe_allow_html=True
+)
 
-col1, col2, col3 = st.columns(3)
-for col, title, value in [(col1, "TARGET", target or "NO TARGET"),
-                          (col2, "MODULES ONLINE", "0 / 8"),
-                          (col3, "INTELLIGENCE STATUS", "STANDBY")]:
-    with col:
-        st.markdown(f'<div class="metric-card"><div class="muted">{title}</div><h3>{value}</h3></div>', unsafe_allow_html=True)
+if result is None:
+    st.info("Ingresá un dominio autorizado en el panel lateral y ejecutá INITIALIZE PASSIVE RECON.")
+    col1, col2, col3 = st.columns(3)
+    for col, title, value in [
+        (col1, "TARGET", target or "NO TARGET"),
+        (col2, "MODULES ONLINE", "5"),
+        (col3, "INTELLIGENCE STATUS", "STANDBY"),
+    ]:
+        with col:
+            st.markdown(
+                '<div class="metric-card"><div class="muted">%s</div><h3>%s</h3></div>' %
+                (title, value), unsafe_allow_html=True
+            )
+else:
+    summary = result["summary"]
+    col1, col2, col3 = st.columns(3)
+    for col, title, value in [
+        (col1, "TARGET", result["target"]),
+        (col2, "DNS RECORDS", str(summary["record_count"])),
+        (col3, "RELATIONSHIPS", str(summary["relationship_count"])),
+    ]:
+        with col:
+            st.markdown(
+                '<div class="metric-card"><div class="muted">%s</div><h3>%s</h3></div>' %
+                (title, value), unsafe_allow_html=True
+            )
 
-left, center, right = st.columns([1, 2, 1])
-with left:
-    st.markdown("### [01] RECON")
-    st.write("Dominio, alcance y fuentes de información.")
-    st.button("INITIALIZE RECON", disabled=True, help="Se habilitará cuando los módulos básicos estén implementados.")
-with center:
-    st.markdown("### [02] RELATIONSHIP MAP")
-    st.info("El grafo de dominios, IP, ASN, certificados y servicios aparecerá aquí cuando exista información correlacionada.")
-    st.code("DOMAIN  ── resolves_to ──>  IP\n   │                         │\n   └── has_certificate ──> CERT", language="text")
-with right:
-    st.markdown("### [03] ENTITY DETAILS")
-    st.write("Seleccioná una entidad del grafo para consultar sus evidencias.")
-    st.caption("SOURCE · TIMESTAMP · CONFIDENCE · CLASSIFICATION")
+    st.markdown("---")
+    left, center, right = st.columns([1, 2, 1])
+    with left:
+        st.markdown("### [01] DNS INTELLIGENCE")
+        for record_type, values in result["records"].items():
+            st.markdown("**%s**" % record_type)
+            if values:
+                for value in values:
+                    st.write(value)
+            else:
+                st.caption("Sin registros observados")
+        if result["errors"]:
+            with st.expander("Detalles de consultas DNS"):
+                for record_type, message in result["errors"].items():
+                    st.write("%s: %s" % (record_type, message))
 
-st.divider()
-st.caption("AUTHORIZED RESEARCH ONLY · PASSIVE OSINT FIRST · ACTIVE SCANS REQUIRE EXPLICIT SCOPE")
+    with center:
+        st.markdown("### [02] RELATIONSHIP MAP")
+        if result["relationships"]:
+            dot = graph_to_dot(result["graph"])
+            try:
+                st.graphviz_chart(dot)
+            except Exception:
+                st.code(dot, language="dot")
+        else:
+            st.info("No se encontraron relaciones DNS para representar.")
+
+    with right:
+        st.markdown("### [03] ENTITY DETAILS")
+        st.write("Entidades: %s" % summary["entity_count"])
+        st.write("Evidencias: %s" % summary["evidence_count"])
+        st.write("Relaciones: %s" % summary["relationship_count"])
+        st.caption("Cada evidencia conserva fuente, fecha, clasificación y confianza.")
+
+    st.markdown("---")
+    with st.expander("EVIDENCE REGISTER"):
+        st.json(result["evidence"])
+
+    report_payload = dict((key, value) for key, value in result.items() if key != "graph")
+    report_data = build_json_report(report_payload)
+    st.download_button(
+        "DOWNLOAD JSON REPORT",
+        data=report_data,
+        file_name="osint_%s.json" % result["target"],
+        mime="application/json"
+    )
+
+if st.session_state.get("show_hosts"):
+    st.markdown("---")
+    st.markdown("### LOCAL HOSTS · READ ONLY")
+    try:
+        st.code(read_hosts_file(), language="text")
+    except Exception as exc:
+        st.warning("No se pudo leer /etc/hosts: %s" % exc)
+
+st.markdown("---")
+st.caption(
+    "AUTHORIZED RESEARCH ONLY · PASSIVE DNS FIRST · ACTIVE SCANS ARE NOT RUN BY THIS DASHBOARD"
+)

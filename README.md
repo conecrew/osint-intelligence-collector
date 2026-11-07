@@ -1,6 +1,6 @@
 # OSINT Intelligence Collector
 
-> **Estado:** 🚧 En desarrollo activo — versión inicial de arquitectura y prototipo.
+> **Estado:** 🚧 Desarrollo activo — primera integración funcional en la rama `feature/integrated-dashboard`.
 
 Plataforma modular de **Open Source Intelligence (OSINT)** desarrollada en Python para recopilar, normalizar, correlacionar y visualizar información pública sobre dominios e infraestructura digital dentro de un alcance autorizado.
 
@@ -8,47 +8,51 @@ El proyecto nace como una herramienta de aprendizaje e investigación aplicada a
 
 ## Identidad visual
 
-La interfaz prevista tendrá una estética **dark / hacker**, con fondo negro, paneles oscuros, tipografía monoespaciada y acentos verde neón. Es una decisión visual para el dashboard; no representa ni promueve actividades maliciosas.
+La interfaz utiliza una estética **dark / hacker**, con fondo negro, paneles oscuros, tipografía monoespaciada y acentos verde neón.
 
-## Objetivos
+## Estado de la integración
 
-- Analizar dominios y recopilar información DNS y de registro.
-- Relacionar dominios, subdominios, direcciones IP, ASN, certificados y servicios.
-- Integrar fuentes OSINT y APIs oficiales cuando estén disponibles.
-- Incorporar Nmap y sus scripts NSE para verificaciones activas expresamente autorizadas.
-- Correlacionar evidencias, registrar procedencia y asignar niveles de confianza.
-- Visualizar relaciones mediante un grafo interactivo inspirado en herramientas de análisis de enlaces.
-- Generar informes reproducibles en JSON, TXT y PDF.
-- Incluir una operación controlada de consulta DNS local y administración de `/etc/hosts`, con confirmación previa.
+La rama `feature/integrated-dashboard` conecta los componentes que ya existen en el repositorio:
 
-## Arquitectura prevista
+- Validación y normalización del dominio.
+- Consultas DNS pasivas A, AAAA, MX, NS, TXT y CNAME.
+- Registro de evidencias con fuente, fecha, clasificación y confianza.
+- Construcción de entidades y relaciones con NetworkX.
+- Representación del grafo mediante Graphviz/DOT en el dashboard.
+- Exportación de resultados a JSON.
+- Lectura de `/etc/hosts` en modo solo lectura.
+- Pruebas unitarias y flujo de integración continua.
+
+Los conectores WHOIS/RDAP, SecurityTrails, Certificate Transparency, Shodan, Censys, VirusTotal y detección de tecnologías siguen pendientes. Nmap está separado de la ejecución pasiva y requiere autorización y alcance aprobado; no se ejecuta desde el dashboard integrado.
+
+## Arquitectura
 
 | Componente | Responsabilidad | Estado |
 |---|---|---|
-| Domain Analyzer | Validación y normalización de dominios | Prototipo inicial |
-| DNS Intelligence | Registros y resolución DNS | Planificado |
-| WHOIS / RDAP | Datos de registro | Planificado |
-| SecurityTrails | Subdominios e historial DNS | Planificado |
-| Certificate Intelligence | Certificados TLS y CT logs | Planificado |
-| Nmap / NSE | Inspecciones activas autorizadas; XML como salida estructurada | Planificado |
-| Shodan / Censys | Servicios e infraestructura observada | Planificado |
-| VirusTotal | Reputación e indicadores | Planificado |
-| Technology Detection | Tecnologías web | Planificado |
-| Intelligence Engine | Correlación, deduplicación y confianza | Planificado |
-| Graph Engine | Relaciones y visualización | Planificado |
-| Report Generator | Exportación JSON, TXT y PDF | Planificado |
-| Local DNS & Hosts Manager | Comparación DNS local y propuesta controlada para hosts | Planificado |
-| GUI Dashboard | Interfaz gráfica dark / hacker | Prototipo visual |
+| Domain Analyzer | Validación y normalización de dominios | Integrado |
+| DNS Intelligence | A, AAAA, MX, NS, TXT y CNAME | Integración inicial |
+| Evidence Manager | Procedencia y trazabilidad de observaciones | Integrado |
+| Graph Engine | Entidades y relaciones | Integrado |
+| Report Generator | Exportación JSON | Integrado |
+| Local DNS & Hosts Manager | Lectura de hosts y propuesta controlada | Solo lectura / propuesta |
+| Nmap / NSE | Inspecciones activas autorizadas | Módulo separado, no conectado al dashboard |
+| WHOIS / RDAP | Datos de registro | Pendiente |
+| SecurityTrails | Subdominios e historial DNS | Pendiente |
+| Certificate Intelligence | Certificados TLS y CT logs | Pendiente |
+| Shodan / Censys | Servicios e infraestructura observada | Pendiente |
+| VirusTotal | Reputación e indicadores | Pendiente |
+| Technology Detection | Tecnologías web | Pendiente |
+| GUI Dashboard | Interfaz gráfica dark / hacker | Integración inicial |
 
 ## Diseño de interfaz
 
-El dashboard se proyecta con tres áreas:
+El dashboard se organiza en tres áreas:
 
-1. **Panel lateral:** dominio objetivo, alcance autorizado, configuración y selección de módulos.
+1. **Panel lateral:** dominio objetivo, confirmación de autorización y módulos.
 2. **Área central:** resumen del reconocimiento y grafo de relaciones.
-3. **Panel de detalle:** evidencia del nodo seleccionado, fuente, fecha, clasificación y confianza.
+3. **Panel de detalle:** registros DNS, evidencias, fuente, fecha, clasificación y confianza.
 
-Tecnologías consideradas: Streamlit para la interfaz, NetworkX y PyVis para el análisis y la visualización de grafos.
+Tecnologías: Streamlit para la interfaz, NetworkX para el grafo y Graphviz/DOT para representarlo.
 
 ## Clasificación de activos y evidencias
 
@@ -65,14 +69,14 @@ Cada evidencia deberá registrar, cuando corresponda: fuente, fecha/hora de cons
 ## Seguridad y uso responsable
 
 - Utilizar únicamente dominios y sistemas propios o para los que exista autorización.
-- Las consultas pasivas y las pruebas activas se distinguirán claramente.
-- Nmap no se ejecutará contra objetivos arbitrarios: se requerirá una confirmación explícita de autorización y alcance.
+- Las consultas pasivas y las pruebas activas se distinguen claramente.
+- Nmap no se ejecutará contra objetivos arbitrarios: requiere confirmación explícita y alcance aprobado.
 - No se automatizará la evasión de WAF, CDN u otros controles de terceros.
 - Las claves API se guardarán fuera del repositorio, mediante variables de entorno o archivos locales excluidos por Git.
-- La modificación de `/etc/hosts` nunca será silenciosa: se mostrará la propuesta y se solicitará confirmación antes de escribir. Se prevén copia de seguridad, validación y restauración.
+- La lectura de `/etc/hosts` es de solo lectura. Cualquier futura escritura requerirá propuesta, confirmación, copia de seguridad y rollback.
 - Google Colab podrá generar propuestas, pero modificar el `/etc/hosts` de una sesión remota no modifica el equipo personal del usuario.
 
-## Instalación (entorno local)
+## Instalación en un entorno moderno
 
 Se recomienda Python 3.10 o superior.
 
@@ -82,44 +86,58 @@ cd osint-intelligence-collector
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-streamlit run src/osint_collector/gui/dashboard.py
+PYTHONPATH=src streamlit run src/osint_collector/gui/dashboard.py
 ```
 
-En Windows, activar el entorno virtual con `.venv\\Scripts\\activate`.
+## Vista previa en Ubuntu 18.04 / Python 3.6
 
-## Estructura inicial
+La rama de integración incluye un archivo separado con dependencias mínimas para la computadora Ceibal:
+
+```bash
+pip install -r requirements-ceibal-py36.txt
+PYTHONPATH=src streamlit run src/osint_collector/gui/dashboard.py
+```
+
+Este archivo no reemplaza `requirements.txt` ni convierte todos los conectores modernos en compatibles con Python 3.6. Es únicamente una configuración de vista previa del dashboard y de los módulos básicos.
+
+## Estructura
 
 ```text
 .
+├── .github/workflows/     # pruebas automatizadas
 ├── docs/                  # documentación y decisiones de arquitectura
 ├── src/osint_collector/
-│   ├── core/              # dominio, evidencias y correlación
-│   ├── modules/           # conectores y analizadores
+│   ├── core/              # dominio, evidencias y orquestación
+│   ├── modules/           # conectores y analizadores técnicos
 │   ├── gui/               # dashboard Streamlit
 │   ├── reporting/         # exportación de informes
 │   └── visualization/     # grafo de relaciones
 ├── tests/                 # pruebas
-├── notebooks/             # experimentación en Google Colab
 ├── requirements.txt
 └── README.md
 ```
 
+## Pruebas
+
+```bash
+PYTHONPATH=src python -m unittest discover -s tests -v
+```
+
+GitHub Actions ejecuta las pruebas con Python 3.10 y 3.11.
+
 ## Hoja de ruta
 
-- [x] Crear repositorio independiente y documentar el propósito.
-- [x] Definir arquitectura modular, criterios de evidencia y enfoque de seguridad.
-- [ ] Implementar y probar Domain Analyzer.
-- [ ] Incorporar DNS Intelligence y WHOIS/RDAP.
-- [ ] Incorporar Certificate Intelligence y Nmap NSE (salida XML).
-- [ ] Integrar fuentes OSINT mediante APIs oficiales.
-- [ ] Desarrollar correlación y grafo interactivo.
+- [x] Crear repositorio y documentar el propósito.
+- [x] Definir arquitectura modular y criterios de evidencia.
+- [x] Crear prototipo visual oscuro.
+- [x] Integrar Domain Analyzer, DNS pasivo, evidencias, grafo y JSON en una rama de desarrollo.
+- [x] Agregar pruebas iniciales y CI.
+- [ ] Completar WHOIS/RDAP y Certificate Intelligence.
+- [ ] Incorporar fuentes OSINT mediante APIs oficiales.
+- [ ] Completar correlación, deduplicación y clasificación.
+- [ ] Integrar Nmap con interfaz de alcance y autorización.
 - [ ] Completar Local DNS & Hosts Manager con confirmación y rollback.
-- [ ] Construir dashboard y exportación de informes.
-- [ ] Pruebas, ejemplos de laboratorio y documentación de uso.
-
-## Estado actual
-
-Este repositorio representa la **base inicial de un proyecto en proceso**, no una herramienta OSINT completa. Los conectores externos, el escaneo Nmap, la correlación avanzada y las operaciones de sistema se implementarán y validarán por etapas.
+- [ ] Pruebas con laboratorios propios, documentación y versión inicial.
 
 ## Licencia
 

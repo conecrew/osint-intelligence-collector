@@ -35,13 +35,13 @@ Los conectores externos ya están incorporados en esta rama: RDAP, WHOIS clásic
 | Graph Engine | Entidades y relaciones | Integrado |
 | Report Generator | Exportación JSON | Integrado |
 | Local DNS & Hosts Manager | Lectura de hosts y propuesta controlada | Solo lectura / propuesta |
-| Nmap / NSE | Inspecciones activas autorizadas | Módulo separado, no conectado al dashboard |
-| WHOIS / RDAP | Datos de registro | Pendiente |
-| SecurityTrails | Subdominios e historial DNS | Pendiente |
-| Certificate Intelligence | Certificados TLS y CT logs | Pendiente |
-| Shodan / Censys | Servicios e infraestructura observada | Pendiente |
-| VirusTotal | Reputación e indicadores | Pendiente |
-| Technology Detection | Tecnologías web | Pendiente |
+| Nmap / NSE | Inspección TLS activa TCP/443 | Integrado con autorización y alcance aprobado |
+| WHOIS / RDAP | Datos de registro | RDAP integrado; WHOIS clásico opcional |
+| SecurityTrails | Subdominios | Integrado; requiere API key |
+| Certificate Intelligence | Certificados y CT logs | crt.sh integrado; evidencia histórica |
+| Shodan / Censys | Servicios observados | Integrados; requieren credenciales |
+| VirusTotal | Reputación e indicadores | Integrado; requiere API key |
+| Technology Detection | Firmas HTTP y HTML | Integración ligera |
 | GUI Dashboard | Interfaz gráfica dark / hacker | Integración inicial |
 
 ## Diseño de interfaz
@@ -117,6 +117,14 @@ Este archivo no reemplaza `requirements.txt` ni convierte todos los conectores m
 └── README.md
 ```
 
+## Configuración de conectores
+
+Copiar `.env.example` a `.env` y definir solo las credenciales disponibles. Variables admitidas: `SECURITYTRAILS_API_KEY`, `SHODAN_API_KEY`, `CENSYS_API_ID`, `CENSYS_API_SECRET` y `VIRUSTOTAL_API_KEY`. No subir el archivo `.env` ni pegar claves en el código. RDAP y crt.sh no requieren credenciales. WHOIS clásico utiliza `python-whois` si está instalado; RDAP permanece como alternativa.
+
+En el dashboard, activar **Ejecutar conectores externos** para consultar los proveedores. La detección tecnológica realiza una petición HTTP(S) directa al sitio, por lo que debe usarse dentro del alcance autorizado. Los datos de Shodan, Censys y Certificate Transparency pueden ser históricos u observacionales; no prueban exposición actual ni titularidad.
+
+Nmap se ejecuta por separado: hay que marcar su control y confirmar autorización. Esta versión solo consulta TCP/443 con NSE `ssl-cert` y requiere Nmap instalado localmente.
+
 ## Pruebas
 
 ```bash
@@ -132,8 +140,8 @@ GitHub Actions ejecuta las pruebas con Python 3.10 y 3.11.
 - [x] Crear prototipo visual oscuro.
 - [x] Integrar Domain Analyzer, DNS pasivo, evidencias, grafo y JSON en una rama de desarrollo.
 - [x] Agregar pruebas iniciales y CI.
-- [ ] Completar WHOIS/RDAP y Certificate Intelligence.
-- [ ] Incorporar fuentes OSINT mediante APIs oficiales.
+- [x] Integrar RDAP, WHOIS opcional y Certificate Transparency.
+- [x] Incorporar SecurityTrails, Shodan, Censys y VirusTotal mediante APIs oficiales.
 - [ ] Completar correlación, deduplicación y clasificación.
 - [x] Integrar Nmap con interfaz de alcance y autorización (prueba TLS TCP/443).
 - [ ] Completar Local DNS & Hosts Manager con confirmación y rollback.

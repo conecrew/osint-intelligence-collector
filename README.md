@@ -23,7 +23,7 @@ La rama `feature/integrated-dashboard` conecta los componentes que ya existen en
 - Lectura de `/etc/hosts` en modo solo lectura.
 - Pruebas unitarias y flujo de integración continua.
 
-Los conectores WHOIS/RDAP, SecurityTrails, Certificate Transparency, Shodan, Censys, VirusTotal y detección de tecnologías siguen pendientes. Nmap está separado de la ejecución pasiva y requiere autorización y alcance aprobado; no se ejecuta desde el dashboard integrado.
+Los conectores externos ya están incorporados en esta rama: RDAP, WHOIS clásico opcional, Certificate Transparency (crt.sh), SecurityTrails, Shodan, Censys, VirusTotal y detección ligera de tecnologías HTTP. Cada proveedor informa `ok`, `no_data`, `missing_credentials`, `dependency_missing` o `error`; un fallo no interrumpe a los demás. Nmap NSE también está conectado como acción separada, limitada a TCP/443 y `ssl-cert`, con confirmación explícita y alcance aprobado.
 
 ## Arquitectura
 

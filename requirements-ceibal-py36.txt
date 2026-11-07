@@ -3,3 +3,4 @@
 streamlit==1.10.0
 networkx==2.5.1
 dnspython==2.2.1
+dataclasses==0.8

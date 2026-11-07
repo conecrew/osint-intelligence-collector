@@ -6,6 +6,7 @@ de alcance autorizada. El resultado XML se devuelve sin ejecutar shell.
 import shutil
 import subprocess
 import xml.etree.ElementTree as ET
+from typing import List
 
 
 def run_ssl_cert_scan(target, authorized, approved_targets, timeout=90):

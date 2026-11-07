@@ -86,6 +86,24 @@ def collect_domain_intelligence(raw_domain, include_external=False):
                     add_relationship("domain:" + domain, entity_id,
                                      "certificate_name_observed", provider)
 
+        # Nameservers publicados por RDAP/WHOIS: relación observada, no atribución.
+        nameservers = list(data.get("nameservers", []))
+        whois_ns = data.get("name_servers", [])
+        if isinstance(whois_ns, str):
+            whois_ns = [whois_ns]
+        nameservers.extend(whois_ns or [])
+        for nameserver in sorted(set(str(value).lower().rstrip(".") for value in nameservers if value)):
+            entity_id = "nameserver:" + nameserver
+            add_entity(entity_id, "nameserver", nameserver)
+            add_relationship("domain:" + domain, entity_id, "registered_nameserver", provider)
+
+        for technology in data.get("technologies", []):
+            value = technology.get("value")
+            if value:
+                entity_id = "technology:" + str(value)
+                add_entity(entity_id, "technology", value)
+                add_relationship("domain:" + domain, entity_id, "technology_observed", provider)
+
         # Direcciones observadas por motores externos: se marcan como asociadas,
         # no como prueba de titularidad ni de exposición actual.
         observed_ips = []

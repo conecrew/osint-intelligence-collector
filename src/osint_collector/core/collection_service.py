@@ -12,10 +12,10 @@ _RELATIONS = {
 
 
 def collect_domain_intelligence(raw_domain, include_external=False):
-    """Valida y reúne DNS, evidencias, grafo y, opcionalmente, proveedores OSINT.
+    """Valida y reúne DNS, evidencias, grafo y, opcionalmente, proveedores externos.
 
-    include_external habilita RDAP, CT, SecurityTrails, Shodan, Censys,
-    VirusTotal y detección HTTP. Nmap queda separado por ser activo.
+    Los conectores HTTP/APIs son independientes. Nmap queda fuera de este flujo
+    y se ejecuta únicamente mediante la acción activa con alcance confirmado.
     """
     domain = normalize_domain(raw_domain)
     dns_result = collect_dns_records(domain)
@@ -29,16 +29,19 @@ def collect_domain_intelligence(raw_domain, include_external=False):
             entities.append({"id": entity_id, "type": entity_type, "label": str(label)})
             seen_entities.add(entity_id)
 
+    def add_relationship(source, target, relation, provider):
+        relationships.append({
+            "source": source, "target": target,
+            "relation": relation, "evidence_source": provider,
+        })
+
     for record_type, values in records.items():
         for value in values:
             value = str(value)
             entity_id = record_type.lower() + ":" + value
             add_entity(entity_id, record_type.lower(), value)
-            relationships.append({
-                "source": "domain:" + domain, "target": entity_id,
-                "relation": _RELATIONS.get(record_type, "related_to"),
-                "evidence_source": "DNS",
-            })
+            add_relationship("domain:" + domain, entity_id,
+                             _RELATIONS.get(record_type, "related_to"), "DNS")
             evidence.append(Evidence(
                 subject=domain, attribute=record_type, value=value,
                 source="system resolver" if record_type in ("A", "AAAA") else "dnspython",
@@ -48,32 +51,55 @@ def collect_domain_intelligence(raw_domain, include_external=False):
     external_results = run_passive_connectors(domain) if include_external else []
     for provider_result in external_results:
         provider = provider_result["provider"]
+        status = provider_result["status"]
+        data = provider_result.get("data", {})
         evidence.append(Evidence(
             subject=domain, attribute="provider_status",
-            value={"status": provider_result["status"], "message": provider_result.get("message")},
+            value={"status": status, "message": provider_result.get("message")},
             source=provider, classification="pending", confidence="unknown",
         ).to_dict())
-        data = provider_result.get("data", {})
+
+        if data:
+            evidence.append(Evidence(
+                subject=domain, attribute="provider_observation",
+                value=data, source=provider,
+                classification="historical" if provider == "Certificate Transparency" else "associated",
+                confidence="low",
+            ).to_dict())
+
+        # SecurityTrails entrega etiquetas relativas, no FQDN completos.
         for item in data.get("subdomains", []):
-            subdomain = str(item).strip().lower()
+            label = str(item).strip().lower().rstrip(".")
+            subdomain = label if label.endswith("." + domain) else label + "." + domain
             if subdomain and "." in subdomain:
                 entity_id = "subdomain:" + subdomain
                 add_entity(entity_id, "subdomain", subdomain)
-                relationships.append({
-                    "source": "domain:" + domain, "target": entity_id,
-                    "relation": "has_observed_subdomain", "evidence_source": provider,
-                })
+                add_relationship("domain:" + domain, entity_id,
+                                 "has_observed_subdomain", provider)
+
         for cert in data.get("certificates", []):
-            names = str(cert.get("name_value") or "").splitlines()
-            for name in names:
+            for name in str(cert.get("name_value") or "").splitlines():
                 name = name.strip().lower().lstrip("*.")
-                if name and "." in name:
+                if name and (name == domain or name.endswith("." + domain)):
                     entity_id = "certificate_name:" + name
                     add_entity(entity_id, "certificate_name", name)
-                    relationships.append({
-                        "source": "domain:" + domain, "target": entity_id,
-                        "relation": "certificate_name_observed", "evidence_source": provider,
-                    })
+                    add_relationship("domain:" + domain, entity_id,
+                                     "certificate_name_observed", provider)
+
+        # Direcciones observadas por motores externos: se marcan como asociadas,
+        # no como prueba de titularidad ni de exposición actual.
+        observed_ips = []
+        observed_ips.extend(
+            item.get("ip_str") for item in data.get("matches", []) if item.get("ip_str")
+        )
+        observed_ips.extend(
+            item.get("ip") for item in data.get("hosts", []) if item.get("ip")
+        )
+        for ip in sorted(set(observed_ips)):
+            entity_id = "observed_ip:" + str(ip)
+            add_entity(entity_id, "observed_ip", ip)
+            add_relationship("domain:" + domain, entity_id,
+                             "infrastructure_observed_by", provider)
 
     graph = build_relationship_graph(entities, relationships)
     return {

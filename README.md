@@ -70,7 +70,7 @@ Cada evidencia deberá registrar, cuando corresponda: fuente, fecha/hora de cons
 
 - Utilizar únicamente dominios y sistemas propios o para los que exista autorización.
 - Las consultas pasivas y las pruebas activas se distinguen claramente.
-- Nmap no se ejecutará contra objetivos arbitrarios: requiere confirmación explícita y alcance aprobado.
+- Nmap está limitado en esta versión a TCP/443 y el script NSE `ssl-cert`; exige confirmación explícita y alcance aprobado.
 - No se automatizará la evasión de WAF, CDN u otros controles de terceros.
 - Las claves API se guardarán fuera del repositorio, mediante variables de entorno o archivos locales excluidos por Git.
 - La lectura de `/etc/hosts` es de solo lectura. Cualquier futura escritura requerirá propuesta, confirmación, copia de seguridad y rollback.
@@ -135,7 +135,7 @@ GitHub Actions ejecuta las pruebas con Python 3.10 y 3.11.
 - [ ] Completar WHOIS/RDAP y Certificate Intelligence.
 - [ ] Incorporar fuentes OSINT mediante APIs oficiales.
 - [ ] Completar correlación, deduplicación y clasificación.
-- [ ] Integrar Nmap con interfaz de alcance y autorización.
+- [x] Integrar Nmap con interfaz de alcance y autorización (prueba TLS TCP/443).
 - [ ] Completar Local DNS & Hosts Manager con confirmación y rollback.
 - [ ] Pruebas con laboratorios propios, documentación y versión inicial.
 

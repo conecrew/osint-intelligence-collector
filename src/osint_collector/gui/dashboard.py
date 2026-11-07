@@ -11,6 +11,8 @@ if _PROJECT_SRC not in sys.path:
 import streamlit as st
 
 from osint_collector.core.collection_service import collect_domain_intelligence
+from osint_collector.core.domain_analyzer import normalize_domain
+from osint_collector.modules.nmap_scanner import run_ssl_cert_scan
 from osint_collector.modules.hosts_manager import read_hosts_file
 from osint_collector.reporting.report_generator import build_json_report
 from osint_collector.visualization.graph_engine import graph_to_dot
@@ -36,6 +38,8 @@ p, label, div { font-family: 'Consolas', 'Courier New', monospace; }
 
 if "osint_result" not in st.session_state:
     st.session_state["osint_result"] = None
+if "nmap_result" not in st.session_state:
+    st.session_state["nmap_result"] = None
 
 with st.sidebar:
     st.markdown("## ⌁ OSINT // COLLECTOR")
@@ -45,8 +49,11 @@ with st.sidebar:
         "Confirmo que tengo autorización para analizar este dominio",
         value=False
     )
-    include_external = st.checkbox("Ejecutar conectores externos (RDAP, CT, APIs y HTTP)", value=False)
-    run_recon = st.button("INITIALIZE RECON")
+    include_external = st.checkbox("Ejecutar conectores externos (RDAP, WHOIS, CT, APIs y HTTP)", value=False)
+    run_recon = st.button("INITIALIZE PASSIVE RECON")
+    st.markdown("### ACTIVE VALIDATION")
+    active_nmap = st.checkbox("Habilitar Nmap NSE (solo puerto 443)", value=False)
+    run_nmap = st.button("RUN AUTHORIZED NMAP CHECK", disabled=not active_nmap)
     st.markdown("---")
     st.markdown("### MÓDULOS")
     st.checkbox("Domain Analyzer", value=True, disabled=True)
@@ -61,7 +68,7 @@ with st.sidebar:
     st.checkbox("Shodan / Censys", value=True, disabled=True)
     st.checkbox("VirusTotal", value=True, disabled=True)
     st.checkbox("Technology Detection (HTTP)", value=True, disabled=True)
-    st.checkbox("Nmap NSE (escaneo activo)", value=False, disabled=True)
+    st.checkbox("Nmap NSE (activo, 443/ssl-cert)", value=False, disabled=True)
     st.caption("Los conectores externos requieren internet; algunos necesitan claves API.")
 
 if run_recon:
@@ -76,6 +83,23 @@ if run_recon:
             except Exception as exc:
                 st.session_state["osint_result"] = None
                 st.error("No se pudo completar el reconocimiento: %s" % exc)
+
+if run_nmap:
+    if not target.strip():
+        st.error("Ingresá el dominio autorizado.")
+    elif not authorized:
+        st.error("Confirmá autorización antes de ejecutar Nmap.")
+    elif not active_nmap:
+        st.error("Habilitá expresamente el control Nmap.")
+    else:
+        try:
+            normalized = normalize_domain(target)
+            with st.spinner("Ejecutando comprobación activa limitada a TCP/443 y ssl-cert..."):
+                st.session_state["nmap_result"] = run_ssl_cert_scan(
+                    normalized, authorized=True, approved_targets=[normalized], timeout=90
+                )
+        except Exception as exc:
+            st.session_state["nmap_result"] = {"error": str(exc)}
 
 result = st.session_state.get("osint_result")
 
@@ -169,6 +193,13 @@ else:
         file_name="osint_%s.json" % result["target"],
         mime="application/json"
     )
+
+nmap_result = st.session_state.get("nmap_result")
+if nmap_result:
+    st.markdown("---")
+    st.markdown("### [05] NMAP NSE · ACTIVE CHECK")
+    st.warning("Consulta activa limitada a TCP/443 con el script ssl-cert. Ejecutar solo con autorización.")
+    st.json(nmap_result)
 
 if st.session_state.get("show_hosts"):
     st.markdown("---")
